@@ -1,26 +1,42 @@
 const express = require('express');
 const app = express();
-__path = process.cwd()
-const bodyParser = require("body-parser");
+const path = require('path');
+
 const PORT = process.env.PORT || 8000;
-let server = require('./qr'),
-    code = require('./pair');
-require('events').EventEmitter.defaultMaxListeners = 500;
-app.use('/qr', server);
-app.use('/code', code);
-app.use('/pair',async (req, res, next) => {
-res.sendFile(__path + '/pair.html')
-})
-app.use('/',async (req, res, next) => {
-res.sendFile(__path + '/index.html')
-})
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: true }));
+
+// SAFE REQUIRE (avoid crash)
+let server, code;
+
+try {
+  server = require('./qr');
+} catch (e) {
+  console.log("QR module error:", e.message);
+}
+
+try {
+  code = require('./pair');
+} catch (e) {
+  console.log("PAIR module error:", e.message);
+}
+
+// ROUTES
+if (server) app.use('/qr', server);
+if (code) app.use('/code', code);
+
+app.use('/pair', (req, res) => {
+  res.sendFile(path.join(__dirname, 'pair.html'));
+});
+
+app.use('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+// EXPRESS BUILT-IN PARSER
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.listen(PORT, () => {
-    console.log(`
-Topu-Qr-Scanner is Live
+  console.log(`\n🚀 Topu Session Server Running on port ${PORT}\n`);
+});
 
- Server running on http://localhost:` + PORT)
-})
-
-module.exports = app
+module.exports = app;
