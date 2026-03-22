@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ZEZE47 MD</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=UnifrakturCook:wght@700&display=swap" rel="stylesheet">
+
+  <style>
+    * {margin: 0; padding: 0; box-sizing: border-box;}
+    html, body {
+      height: 100%;
+      background: transparent;
+      font-family: Arial, sans-serif;
+      overflow-x: hidden;
+      color: white;
+      position: relative;
+      z-index: 0;
+    }
+
+    #bg-video {
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .typing-header {
+      text-align: center;
+      margin-top: 20px;
+    }
+
+    svg {
+      width: 90%;
+      height: 60px;
+    }
+
+    svg text {
+      fill: none;
+      stroke: white;
+      stroke-width: 1px;
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      stroke-dasharray: 400;
+      stroke-dashoffset: 400;
+      animation: type 5s linear forwards infinite alternate;
+    }
+
+    @keyframes type {
+      to {stroke-dashoffset: 0;}
+    }
+
+    .audio-controls {
+      text-align: center;
+      margin: 10px 0;
+    }
+
+    .audio-controls button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 24px;
+      margin: 10px;
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .audio-controls button:hover {
+      transform: scale(1.2);
+    }
+
+    .rainbow-wave {
+      height: 40px;
+      background: linear-gradient(90deg, red, orange, yellow, green, blue, indigo, violet);
+      animation: wave 2s linear infinite;
+      mask-image: url('https://upload.wikimedia.org/wikipedia/commons/f/fd/Sine_wave_animated.gif');
+      mask-size: cover;
+    }
+
+    @keyframes wave {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+
+    .container {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 20px;
+    }
+
+    .box {
+      background: rgba(0, 0, 0, 0.6);
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+      max-width: 400px;
+      width: 100%;
+      margin: 20px auto;
+      text-align: center;
+    }
+
+    .input-container {
+      display: flex;
+      margin-top: 10px;
+      gap: 10px;
+    }
+
+    .input-container input {
+      flex: 1;
+      padding: 10px;
+      border-radius: 8px;
+      border: none;
+    }
+
+    .input-container button {
+      padding: 10px;
+      background: #ff0057;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .join-buttons {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      justify-content: center;
+      margin-bottom: 20px;
+    }
+
+    .join-buttons button {
+      background: linear-gradient(270deg, red, orange, yellow, green, blue, indigo, violet);
+      background-size: 1400% 1400%;
+      animation: rainbow 6s ease infinite;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: bold;
+      cursor: pointer;
+      min-width: 150px;
+    }
+
+    @keyframes rainbow {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    #pair {
+      margin-top: 15px;
+    }
+
+    .matrix-box {
+      background: rgba(0, 0, 0, 0.6);
+      border-radius: 15px;
+      box-shadow: 0 0 10px #00ff00;
+      padding: 20px;
+      width: 90%;
+      max-width: 400px;
+      margin: 20px auto;
+      height: 200px;
+      overflow-y: auto;
+    }
+
+    .matrix-title {
+      text-align: center;
+      font-size: 30px;
+      font-family: 'UnifrakturCook', cursive;
+      background: linear-gradient(270deg, red, orange, yellow, green, blue, indigo, violet);
+      background-size: 400% 400%;
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      animation: rainbowText 3s linear infinite;
+      text-shadow: 0 0 5px #fff;
+      margin-bottom: 15px;
+    }
+
+    @keyframes rainbowText {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    .matrix-line {
+      font-size: 16px;
+      user-select: none;
+      opacity: 0.85;
+      color: #00FF00;
+      text-shadow: 0 0 5px #00FF00, 0 0 10px #00FF00, 0 0 15px #00BFFF;
+      margin-bottom: 5px;
+      white-space: pre;
+    }
+
+    @media (max-width: 500px) {
+      .input-container {flex-direction: column;}
+      .input-container input, .input-container button {width: 100%;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- Background Video -->
+<video id="bg-video" autoplay muted loop playsinline>
+  <source src="https://files.catbox.moe/g6bwju.mp4" type="video/mp4">
+  Your browser does not support the video tag.
+</video>
+
+<!-- Header Text -->
+<div class="typing-header">
+  <svg viewBox="0 0 500 60">
+    <text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle">
+      THANK YOU FOR CHOOSING ALONE MD
+    </text>
+  </svg>
+</div>
+
+<!-- Audio Controls -->
+<div class="audio-controls">
+  <button onclick="toggleAudio()" title="Play/Pause"><i id="audioIcon" class="fas fa-play"></i></button>
+</div>
+<div class="rainbow-wave"></div>
+
+<!-- Main Container -->
+<div class="container">
+  <div class="box">
+    <h2>ALONE MD SESSION SCANNER</h2>
+    <p>Enter your number with country code</p>
+    <div class="input-container">
+      <input type="number" placeholder="255673xxxx" id="number" />
+      <button id="submit">Submit</button>
+    </div>
+    <div id="pair"></div>
+  </div>
+
+  <div class="join-buttons">
+    <button onclick="window.open('https://chat.whatsapp.com/HcUtcJWefWLLGC0eHPbUzZ')">Join us today</button>
+    <button onclick="window.open('https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r')">SUPPORT CHANNEL</button>
+    <button onclick="window.open('https://chat.whatsapp.com/HcUtcJWefWLLGC0eHPbUzZ')">SUPPORT GROUP</button>
+  </div>
+
+  <!-- Matrix Box -->
+  <div class="matrix-box">
+    <div class="matrix-title">ENJOY...</div>
+    <div id="matrix-content"></div>
+  </div>
+</div>
+
+<!-- Audio Element -->
+<audio id="audio" loop>
+  <source src="https://files.catbox.moe/zvt5zs.mp3" type="audio/mp3" />
+</audio>
+
+<!-- JS Scripts -->
+<script>
+  const audio = document.getElementById("audio");
+  const icon = document.getElementById("audioIcon");
+
+  // Play audio on first user click
+  window.addEventListener("DOMContentLoaded", () => {
+    const enableAudio = () => {
+      audio.play().then(() => {
+        icon.className = "fas fa-pause";
+      }).catch(e => console.log("Autoplay blocked:", e));
+      document.removeEventListener("click", enableAudio);
+    };
+    document.addEventListener("click", enableAudio);
+  });
+
+  // Pause/resume audio on visibility change
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      audio.pause();
+      icon.className = "fas fa-play";
+    } else {
+      audio.play().then(() => {
+        icon.className = "fas fa-pause";
+      }).catch(e => console.log("Resume error:", e));
+    }
+  });
+
+  function toggleAudio() {
+    if (audio.paused) {
+      audio.play().then(() => {
+        icon.className = "fas fa-pause";
+      }).catch(e => console.log("Play error:", e));
+    } else {
+      audio.pause();
+      icon.className = "fas fa-play";
+    }
+  }
+
+  document.getElementById("submit").addEventListener("click", async (e) => {
+    e.preventDefault();
+    const number = document.getElementById("number").value;
+    const pair = document.getElementById("pair");
+
+    if (!number) {
+      pair.innerHTML = '<a style="color:white;font-weight:bold">Enter your WhatsApp number with Country Code</a><br><br>';
+    } else if (number.replace(/[^0-9]/g, "").length < 11) {
+      pair.innerHTML = '<a style="color:red;font-weight:bold">Invalid Phone Number</a><br><br>';
+    } else {
+      const cleanNumber = number.replace(/[^0-9]/g, "");
+      document.getElementById("number").type = "text";
+      document.getElementById("number").value = "+" + cleanNumber;
+      document.getElementById("number").style = "color:red;font-size:20px";
+
+      pair.innerHTML = '<a style="color:white;font-weight:bold">Please Wait...</a><br><br>';
+      try {
+        const res = await fetch(`/code?number=${cleanNumber}`);
+        const data = await res.json();
+        const code = data.code || "Service Unavailable";
+        pair.innerHTML = `<font id="copy" onclick="navigator.clipboard.writeText('${code}')" style="color:red;font-weight:bold; cursor:pointer;" size="5">CODE: <span style="color:white;font-weight:bold">${code}</span></font><br><br><br>`;
+      } catch {
+        pair.innerHTML = '<a style="color:red;font-weight:bold">Error fetching code.</a>';
+      }
+    }
+  });
+
+  const lines = [
+    "HELLO THIS IS ALONE MD BEST WHATSAPP BOT",
+    "Developed by Toputech to enhance your fun",
+    "Get connected and enjoy...",
+    "Get updated by joining our giveaway channel....",
+    "~ welcome to ALONE MD ~"
+  ];
+
+  const container = document.getElementById("matrix-content");
+  let lineIndex = 0;
+  const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+-=[]{}|;:',.<>?";
+
+  function glitchChar() {
+    return charset.charAt(Math.floor(Math.random() * charset.length));
+  }
+
+  function typeLine(text, speed = 20, glitchCount = 4) {
+    const lineEl = document.createElement("div");
+    lineEl.classList.add("matrix-line");
+    container.appendChild(lineEl);
+
+    let charIndex = 0;
+
+    function revealChar() {
+      if (charIndex >= text.length) return;
+
+      let glitchStep = 0;
+      const targetChar = text[charIndex];
+      const glitchInterval = setInterval(() => {
+        if (glitchStep < glitchCount) {
+          lineEl.textContent = lineEl.textContent.slice(0, -1) + glitchChar();
+          glitchStep++;
+        } else {
+          clearInterval(glitchInterval);
+          lineEl.textContent = lineEl.textContent.slice(0, -1) + targetChar;
+          charIndex++;
+          lineEl.textContent += "_";
+          revealChar();
+        }
+      }, speed);
+    }
+
+    lineEl.textContent = "_";
+    revealChar();
+  }
+
+  function loopLines() {
+    if (lineIndex >= lines.length) {
+      lineIndex = 0;
+      container.innerHTML = "";
+    }
+    typeLine(lines[lineIndex]);
+    lineIndex++;
+    setTimeout(loopLines, 4000);
+  }
+
+  loopLines();
+</script>
+
+</body>
+</html>
