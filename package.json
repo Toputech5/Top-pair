@@ -3,9 +3,9 @@
   "version": "1.0.0",
   "description": "Topu WhatsApp Session Generator",
   "type": "module",
-  "main": "toputech.js",
+  "main": "toputech.cjs",
   "scripts": {
-    "start": "node toputech.js"
+    "start": "node toputech.cjs"
   },
   "engines": {
     "node": ">=18"
