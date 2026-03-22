@@ -2,7 +2,6 @@
   "name": "topu-sessions",
   "version": "1.0.0",
   "description": "Topu WhatsApp Session Generator",
-  "type": "module",
   "main": "toputech.cjs",
   "scripts": {
     "start": "node toputech.cjs"
@@ -13,7 +12,9 @@
   "author": "Topu Tech",
   "license": "GPL-3.0",
   "dependencies": {
+    "express": "^4.18.2",
     "@whiskeysockets/baileys": "^6.7.5",
-    "pino": "^8.16.0"
+    "pino": "^8.16.0",
+    "qrcode": "^1.5.4"
   }
 }
