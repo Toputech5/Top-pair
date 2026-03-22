@@ -1,25 +1,19 @@
 {
-    "description": "topu-sessions",
-    "main": "./toputech.js",
-  "engines" : { 
-    "npm" : ">=9.7.2",
-    "node" : ">=20.0.0"
-    },
-    "scripts": {
+  "name": "topu-sessions",
+  "version": "1.0.0",
+  "description": "Topu WhatsApp Session Generator",
+  "type": "module",
+  "main": "toputech.js",
+  "scripts": {
     "start": "node toputech.js"
   },
+  "engines": {
+    "node": ">=18"
+  },
   "author": "Topu Tech",
-  "license": "GPL-3.0 license",
+  "license": "GPL-3.0",
   "dependencies": {
-    "@whiskeysockets/baileys": "latest",
-    "maher-zubair-baileys": "^6.6.5",
-    "qrcode": "^1.5.3",
-    "awesome-phonenumber": "^2.64.0",
-    "pino": "^8.1.0",
-    "phone" : "3.1.30",
-    "body-parser": "^1.20.1",
-    "pastebin-js": "^1.0.6",
-    "express": "^4.18.1",
-    "path": "^0.12.7"
-   }
+    "@whiskeysockets/baileys": "^6.7.5",
+    "pino": "^8.16.0"
+  }
 }
