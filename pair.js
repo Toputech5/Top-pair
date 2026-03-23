@@ -13,6 +13,7 @@ const {
     Browsers
 } = require("@whiskeysockets/baileys");
 
+// 🧹 Clean temp folder
 function removeFile(path) {
     if (fs.existsSync(path)) {
         fs.rmSync(path, { recursive: true, force: true });
@@ -45,12 +46,13 @@ router.get('/', async (req, res) => {
             browser: Browsers.macOS("Chrome"),
         });
 
+        // 💾 Save creds
         sock.ev.on("creds.update", async () => {
-            saveCreds();
+            await saveCreds();
 
-            // 🔥 Wait for creds.json to exist
             const filePath = `${sessionPath}/creds.json`;
 
+            // ⏳ wait until creds.json exists
             let tries = 0;
             while (!fs.existsSync(filePath) && tries < 10) {
                 await delay(1000);
@@ -62,26 +64,57 @@ router.get('/', async (req, res) => {
                 return;
             }
 
-            // 🔥 Wait more for full login
-            await delay(6000);
+            // ⏳ IMPORTANT: longer delay for WhatsApp Business
+            await delay(15000);
 
             try {
                 const data = fs.readFileSync(filePath);
                 const b64data = Buffer.from(data).toString('base64');
 
-                // 🔥 Ensure user is ready
-                if (!sock.user) {
+                // 🔒 Ensure user exists
+                if (!sock.user || !sock.user.id) {
                     console.log("❌ sock.user not ready");
                     return;
                 }
 
-                const sent = await sock.sendMessage(sock.user.id, {
-                    text: b64data
-                });
+                // 🔁 Retry sending (fix Business issue)
+                let sent = false;
+                let msg;
+
+                for (let i = 0; i < 5; i++) {
+                    try {
+                        msg = await sock.sendMessage(sock.user.id, {
+                            text: b64data
+                        });
+                        sent = true;
+                        break;
+                    } catch (err) {
+                        console.log("Retry sending...", i + 1);
+                        await delay(3000);
+                    }
+                }
+
+                if (!sent) {
+                    console.log("❌ Failed to send session");
+                    return;
+                }
+
+                // ✨ Stylish message
+                const text = `
+✅ SESSION GENERATED SUCCESSFULLY
+
+📦 Your session:
+${b64data.slice(0, 30)}...
+
+🔗 Channel:
+https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
+
+⚠️ Save this session safely!
+`;
 
                 await sock.sendMessage(sock.user.id, {
-                    text: `✅ SESSION GENERATED\n\n${b64data.slice(0, 30)}...\n\nJoin:\nhttps://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r`
-                }, { quoted: sent });
+                    text: text
+                }, { quoted: msg });
 
                 console.log("✅ Session sent successfully");
 
@@ -95,11 +128,12 @@ router.get('/', async (req, res) => {
             }, 60000);
         });
 
-        // ⏳ wait before requesting code
+        // ⏳ wait before pairing request
         await delay(2000);
 
         const code = await sock.requestPairingCode(num);
 
+        // ✅ Send pairing code to frontend
         res.json({
             status: true,
             code: code
