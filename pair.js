@@ -13,7 +13,6 @@ const {
     Browsers
 } = require("@whiskeysockets/baileys");
 
-// 🧹 Clean temp folder
 function removeFile(path) {
     if (fs.existsSync(path)) {
         fs.rmSync(path, { recursive: true, force: true });
@@ -46,79 +45,61 @@ router.get('/', async (req, res) => {
             browser: Browsers.macOS("Chrome"),
         });
 
-        // 💾 Save credentials
-        sock.ev.on("creds.update", saveCreds);
+        sock.ev.on("creds.update", async () => {
+            saveCreds();
 
-        // 🔥 CONNECTION EVENT
-        sock.ev.on("connection.update", async (update) => {
-            console.log("UPDATE:", update); // debug
+            // 🔥 Wait for creds.json to exist
+            const filePath = `${sessionPath}/creds.json`;
 
-            const { connection } = update;
+            let tries = 0;
+            while (!fs.existsSync(filePath) && tries < 10) {
+                await delay(1000);
+                tries++;
+            }
 
-            if (connection === "open") {
-                console.log("✅ Connected to WhatsApp");
+            if (!fs.existsSync(filePath)) {
+                console.log("❌ creds.json not found");
+                return;
+            }
 
-                // ⏳ wait for user object
-                let tries = 0;
-                while (!sock.user && tries < 10) {
-                    await delay(1000);
-                    tries++;
-                }
+            // 🔥 Wait more for full login
+            await delay(6000);
 
+            try {
+                const data = fs.readFileSync(filePath);
+                const b64data = Buffer.from(data).toString('base64');
+
+                // 🔥 Ensure user is ready
                 if (!sock.user) {
                     console.log("❌ sock.user not ready");
                     return;
                 }
 
-                await delay(5000);
+                const sent = await sock.sendMessage(sock.user.id, {
+                    text: b64data
+                });
 
-                try {
-                    const data = fs.readFileSync(`${sessionPath}/creds.json`);
-                    const b64data = Buffer.from(data).toString('base64');
+                await sock.sendMessage(sock.user.id, {
+                    text: `✅ SESSION GENERATED\n\n${b64data.slice(0, 30)}...\n\nJoin:\nhttps://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r`
+                }, { quoted: sent });
 
-                    const sent = await sock.sendMessage(sock.user.id, {
-                        text: b64data
-                    });
+                console.log("✅ Session sent successfully");
 
-                    const msg = `
-✅ *SESSION GENERATED SUCCESSFULLY*
-
-📦 Your session:
-${b64data.slice(0, 25)}...
-
-🔗 Join Channel:
-https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
-`;
-
-                    await sock.sendMessage(sock.user.id, {
-                        text: msg
-                    }, { quoted: sent });
-
-                    console.log("✅ Session sent to WhatsApp");
-
-                } catch (err) {
-                    console.log("❌ SEND ERROR:", err);
-                }
-
-                // 🧹 Cleanup
-                setTimeout(() => {
-                    removeFile(sessionPath);
-                }, 60000);
+            } catch (err) {
+                console.log("❌ SEND ERROR:", err);
             }
+
+            // 🧹 cleanup
+            setTimeout(() => {
+                removeFile(sessionPath);
+            }, 60000);
         });
 
-        // ⏳ Give socket time to initialize
+        // ⏳ wait before requesting code
         await delay(2000);
 
-        let code;
-        try {
-            code = await sock.requestPairingCode(num);
-        } catch (err) {
-            console.log("❌ PAIR CODE ERROR:", err);
-            return res.json({ status: false, error: "Failed to generate pairing code" });
-        }
+        const code = await sock.requestPairingCode(num);
 
-        // ✅ Send code to frontend
         res.json({
             status: true,
             code: code
