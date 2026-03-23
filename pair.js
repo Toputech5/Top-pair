@@ -28,7 +28,7 @@ router.get('/', async (req, res) => {
         return res.json({ status: false, error: "Number is required" });
     }
 
-    // Normalize number (remove +, spaces, etc.)
+    // Normalize number
     num = num.replace(/[^0-9]/g, '');
 
     const sessionPath = './temp/' + id;
@@ -49,35 +49,43 @@ router.get('/', async (req, res) => {
             browser: Browsers.macOS("Chrome"),
         });
 
-        // Handle connection updates
-        sock.ev.on("connection.update", ({ connection }) => {
+        // 🔥 CONNECTION DEBUG
+        sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
+            console.log("📡 Connection:", connection);
+
             if (connection === "open") {
-                console.log("✅ WhatsApp Connected");
+                console.log("✅ WhatsApp Connected Successfully");
+            }
+
+            if (connection === "close") {
+                console.log("❌ Disconnected:", lastDisconnect?.error);
             }
         });
 
-        // Save credentials
+        // 💾 Save creds
         sock.ev.on("creds.update", saveCreds);
 
-        // Wait for connection to stabilize
-        await delay(3000);
+        // 🔥 USE OLD WORKING LOGIC (IMPORTANT FIX)
+        if (!sock.authState.creds.registered) {
+            await delay(2000);
 
-        // Request pairing code
-        const code = await sock.requestPairingCode(num);
+            const code = await sock.requestPairingCode(num);
 
-        console.log("📌 Pairing Code:", code);
+            console.log("📌 Pairing Code:", code);
 
-        // Respond immediately with code
-        res.json({
-            status: true,
-            code: code
-        });
+            if (!res.headersSent) {
+                res.json({
+                    status: true,
+                    code: code
+                });
+            }
+        }
 
-        // Wait for creds.json to be created
+        // 🔄 WAIT FOR CREDS FILE
         const filePath = `${sessionPath}/creds.json`;
 
         let tries = 0;
-        while (!fs.existsSync(filePath) && tries < 20) {
+        while (!fs.existsSync(filePath) && tries < 25) {
             await delay(1000);
             tries++;
         }
@@ -87,8 +95,8 @@ router.get('/', async (req, res) => {
             return;
         }
 
-        // Wait extra time for stability (important for Business accounts)
-        await delay(10000);
+        // ⏳ Extra delay (VERY IMPORTANT for Business)
+        await delay(12000);
 
         try {
             const data = fs.readFileSync(filePath);
@@ -99,7 +107,7 @@ router.get('/', async (req, res) => {
             let sent = false;
             let msg;
 
-            // Retry sending session
+            // 🔁 Retry sending session
             for (let i = 0; i < 5; i++) {
                 try {
                     msg = await sock.sendMessage(jid, {
@@ -109,24 +117,24 @@ router.get('/', async (req, res) => {
                     sent = true;
                     break;
                 } catch (err) {
-                    console.log(`Retry sending session... (${i + 1})`);
+                    console.log(`Retry sending session (${i + 1})`);
                     await delay(3000);
                 }
             }
 
             if (!sent) {
-                console.log("❌ Failed to send session to user");
+                console.log("❌ Failed to send session");
                 return;
             }
 
-            // Optional styled message
+            // ✨ Styled message
             const text = `
 ✅ SESSION LINKED SUCCESSFULLY
 
-🔐 Your session has been generated.
+🔐 Your WhatsApp is now connected.
 
-⚠️ Keep it private and secure.
-📦 Do not share with anyone.
+⚠️ Keep your session safe.
+📦 Do NOT share it with anyone.
 
 🔗 Channel:
 https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
@@ -136,13 +144,13 @@ https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
                 text: text
             }, { quoted: msg });
 
-            console.log("✅ Session sent to user");
+            console.log("✅ Session sent successfully");
 
         } catch (err) {
             console.log("❌ SEND ERROR:", err);
         }
 
-        // Cleanup after 1 minute
+        // 🧹 Cleanup after 1 min
         setTimeout(() => {
             removeFile(sessionPath);
         }, 60000);
@@ -150,10 +158,12 @@ https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
     } catch (err) {
         console.log("❌ MAIN ERROR:", err);
 
-        res.json({
-            status: false,
-            error: "Server error"
-        });
+        if (!res.headersSent) {
+            res.json({
+                status: false,
+                error: "Server error"
+            });
+        }
     }
 });
 
