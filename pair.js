@@ -1,11 +1,9 @@
-const PastebinAPI = require('pastebin-js');
-const pastebin = new PastebinAPI('EMWTMkQAVfJa9kM-MRUrxd5Oku1U7pgL');
+const express = require('express');
+const router = express.Router();
+const fs = require('fs');
+const pino = require("pino");
 
 const { makeid } = require('./id');
-const express = require('express');
-const fs = require('fs');
-const router = express.Router();
-const pino = require("pino");
 
 const {
     default: makeWASocket,
@@ -15,7 +13,7 @@ const {
     Browsers
 } = require("@whiskeysockets/baileys");
 
-// 🧹 Clean temp folder
+// 🧹 cleanup
 function removeFile(path) {
     if (fs.existsSync(path)) {
         fs.rmSync(path, { recursive: true, force: true });
@@ -31,125 +29,104 @@ router.get('/', async (req, res) => {
     }
 
     num = num.replace(/[^0-9]/g, '');
-
     const sessionPath = './temp/' + id;
 
-    async function START_PAIRING() {
+    try {
         const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
-        try {
-            const sock = makeWASocket({
-                auth: {
-                    creds: state.creds,
-                    keys: makeCacheableSignalKeyStore(
-                        state.keys,
-                        pino({ level: "silent" })
-                    ),
-                },
-                printQRInTerminal: false,
-                logger: pino({ level: "silent" }),
-                browser: Browsers.macOS("Chrome"),
-            });
+        const sock = makeWASocket({
+            auth: {
+                creds: state.creds,
+                keys: makeCacheableSignalKeyStore(
+                    state.keys,
+                    pino({ level: "silent" })
+                ),
+            },
+            printQRInTerminal: false,
+            logger: pino({ level: "silent" }),
+            browser: Browsers.macOS("Chrome"),
+        });
 
-            // 💾 Save creds
-            sock.ev.on('creds.update', saveCreds);
+        sock.ev.on("creds.update", saveCreds);
 
-            let codeSent = false;
+        let codeSent = false;
 
-            sock.ev.on("connection.update", async (update) => {
-                const { connection, lastDisconnect } = update;
+        // 🔥 MAIN CONNECTION HANDLER
+        sock.ev.on("connection.update", async (update) => {
+            const { connection, lastDisconnect } = update;
 
-                console.log("📡 Connection:", connection);
+            console.log("📡", connection);
 
-                // 🔥 FIX: send pairing at correct time
-                if (!sock.authState.creds.registered && !codeSent) {
-                    await delay(2000);
+            // ✅ SEND PAIRING CODE AT RIGHT TIME
+            if (connection === "connecting" && !sock.authState.creds.registered && !codeSent) {
+                await delay(3000);
 
-                    const code = await sock.requestPairingCode(num);
+                const code = await sock.requestPairingCode(num);
 
-                    console.log("📌 Pair Code:", code);
+                console.log("📌 CODE:", code);
 
-                    codeSent = true;
+                codeSent = true;
 
-                    if (!res.headersSent) {
-                        res.json({ status: true, code });
-                    }
+                if (!res.headersSent) {
+                    res.json({
+                        status: true,
+                        code: code,
+                        instructions: "Open WhatsApp → Linked Devices → Link with phone number → Enter this code"
+                    });
                 }
-
-                if (connection === "open") {
-                    console.log("✅ CONNECTED");
-
-                    await delay(5000);
-
-                    const filePath = `${sessionPath}/creds.json`;
-
-                    if (!fs.existsSync(filePath)) {
-                        console.log("❌ creds.json missing");
-                        return;
-                    }
-
-                    const data = fs.readFileSync(filePath);
-                    const b64data = Buffer.from(data).toString('base64');
-
-                    try {
-                        // 🔥 send to SELF (this is what your old code did)
-                        const msg = await sock.sendMessage(sock.user.id, {
-                            text: b64data
-                        });
-
-                        const text = `
-THANK YOU FOR CHOOSING ALONE MD
-
-🔙💚 DRIP FAMILY 💫
-╭━━━━❤━━━━╮
-💥 VERY ACTIVE
-🕊️ CLEAN ALWAYS
-╰━━━━🥺━━━━╯
-
-🔗 Channel:
-https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
-
-⚠️ Save your session safely!
-`;
-
-                        await sock.sendMessage(sock.user.id, {
-                            text: text
-                        }, { quoted: msg });
-
-                        console.log("✅ Session sent");
-
-                    } catch (err) {
-                        console.log("❌ Send error:", err);
-                    }
-
-                    await delay(500);
-                    await sock.ws.close();
-                    removeFile(sessionPath);
-                }
-
-                // 🔁 Auto-reconnect if needed
-                if (
-                    connection === "close" &&
-                    lastDisconnect?.error?.output?.statusCode !== 401
-                ) {
-                    console.log("🔄 Reconnecting...");
-                    await delay(5000);
-                    START_PAIRING();
-                }
-            });
-
-        } catch (err) {
-            console.log("❌ ERROR:", err);
-
-            removeFile(sessionPath);
-
-            if (!res.headersSent) {
-                res.json({ status: false, error: "Service Unavailable" });
             }
+
+            // ✅ AFTER SUCCESSFUL LINK
+            if (connection === "open") {
+                console.log("✅ CONNECTED");
+
+                await delay(5000);
+
+                const filePath = `${sessionPath}/creds.json`;
+
+                if (!fs.existsSync(filePath)) {
+                    console.log("❌ creds.json not found");
+                    return;
+                }
+
+                const data = fs.readFileSync(filePath);
+                const session = Buffer.from(data).toString("base64");
+
+                try {
+                    await sock.sendMessage(sock.user.id, {
+                        text: `✅ SESSION ID:\n\n${session}`
+                    });
+
+                    console.log("✅ Session sent to WhatsApp");
+
+                } catch (err) {
+                    console.log("❌ Failed to send session");
+                }
+
+                // cleanup
+                setTimeout(() => removeFile(sessionPath), 60000);
+            }
+
+            // 🔁 reconnect if needed
+            if (
+                connection === "close" &&
+                lastDisconnect?.error?.output?.statusCode !== 401
+            ) {
+                console.log("🔄 Reconnecting...");
+                await delay(5000);
+            }
+        });
+
+    } catch (err) {
+        console.log("❌ ERROR:", err);
+
+        if (!res.headersSent) {
+            res.json({
+                status: false,
+                error: "Server error"
+            });
         }
     }
-
-    START_PAIRING();
 });
 
 module.exports = router;
