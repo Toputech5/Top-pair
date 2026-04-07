@@ -2,9 +2,9 @@
   "name": "topu-sessions",
   "version": "1.0.0",
   "description": "Topu WhatsApp Session Generator",
-  "main": "toputech.cjs",
+  "main": "toputech.js",
   "scripts": {
-    "start": "node toputech.cjs"
+    "start": "node toputech.js"
   },
   "engines": {
     "node": ">=18",
