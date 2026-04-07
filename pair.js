@@ -1,9 +1,11 @@
-const express = require('express');
-const router = express.Router();
-const fs = require('fs');
-const pino = require("pino");
+const PastebinAPI = require('pastebin-js');
+const pastebin = new PastebinAPI('EMWTMkQAVfJa9kM-MRUrxd5Oku1U7pgL');
 
 const { makeid } = require('./id');
+const express = require('express');
+const fs = require('fs');
+const router = express.Router();
+const pino = require("pino");
 
 const {
     default: makeWASocket,
@@ -13,7 +15,7 @@ const {
     Browsers
 } = require("@whiskeysockets/baileys");
 
-// cleanup
+// 🧹 Clean temp folder
 function removeFile(path) {
     if (fs.existsSync(path)) {
         fs.rmSync(path, { recursive: true, force: true });
@@ -29,77 +31,125 @@ router.get('/', async (req, res) => {
     }
 
     num = num.replace(/[^0-9]/g, '');
+
     const sessionPath = './temp/' + id;
 
-    try {
+    async function START_PAIRING() {
         const { state, saveCreds } = await useMultiFileAuthState(sessionPath);
 
-        const sock = makeWASocket({
-            auth: {
-                creds: state.creds,
-                keys: makeCacheableSignalKeyStore(state.keys, pino({ level: "silent" })),
-            },
-            printQRInTerminal: false,
-            logger: pino({ level: "silent" }),
-            browser: Browsers.macOS("Chrome"),
-        });
+        try {
+            const sock = makeWASocket({
+                auth: {
+                    creds: state.creds,
+                    keys: makeCacheableSignalKeyStore(
+                        state.keys,
+                        pino({ level: "silent" })
+                    ),
+                },
+                printQRInTerminal: false,
+                logger: pino({ level: "silent" }),
+                browser: Browsers.macOS("Chrome"),
+            });
 
-        sock.ev.on("creds.update", saveCreds);
+            // 💾 Save creds
+            sock.ev.on('creds.update', saveCreds);
 
-        // 🔥 CONNECTION HANDLER
-        sock.ev.on("connection.update", async ({ connection }) => {
-            if (connection === "open") {
-                console.log("✅ CONNECTED");
+            let codeSent = false;
 
-                // wait a bit
-                await delay(5000);
+            sock.ev.on("connection.update", async (update) => {
+                const { connection, lastDisconnect } = update;
 
-                const filePath = `${sessionPath}/creds.json`;
+                console.log("📡 Connection:", connection);
 
-                if (fs.existsSync(filePath)) {
-                    const data = fs.readFileSync(filePath);
-                    const session = Buffer.from(data).toString("base64");
+                // 🔥 FIX: send pairing at correct time
+                if (!sock.authState.creds.registered && !codeSent) {
+                    await delay(2000);
 
-                    const jid = num + "@s.whatsapp.net";
+                    const code = await sock.requestPairingCode(num);
 
-                    try {
-                        await sock.sendMessage(jid, {
-                            text: `✅ SESSION ID:\n\n${session}`
-                        });
+                    console.log("📌 Pair Code:", code);
 
-                        console.log("✅ Session sent");
-                    } catch (err) {
-                        console.log("❌ Failed to send session");
+                    codeSent = true;
+
+                    if (!res.headersSent) {
+                        res.json({ status: true, code });
                     }
                 }
 
-                // cleanup
-                setTimeout(() => removeFile(sessionPath), 60000);
-            }
-        });
+                if (connection === "open") {
+                    console.log("✅ CONNECTED");
 
-        // 🔥 ONLY REQUEST CODE IF NOT REGISTERED
-        if (!sock.authState.creds.registered) {
-            await delay(2000);
+                    await delay(5000);
 
-            const code = await sock.requestPairingCode(num);
+                    const filePath = `${sessionPath}/creds.json`;
 
-            console.log("PAIR CODE:", code);
+                    if (!fs.existsSync(filePath)) {
+                        console.log("❌ creds.json missing");
+                        return;
+                    }
 
-            return res.json({
-                status: true,
-                code: code
+                    const data = fs.readFileSync(filePath);
+                    const b64data = Buffer.from(data).toString('base64');
+
+                    try {
+                        // 🔥 send to SELF (this is what your old code did)
+                        const msg = await sock.sendMessage(sock.user.id, {
+                            text: b64data
+                        });
+
+                        const text = `
+THANK YOU FOR CHOOSING ALONE MD
+
+🔙💚 DRIP FAMILY 💫
+╭━━━━❤━━━━╮
+💥 VERY ACTIVE
+🕊️ CLEAN ALWAYS
+╰━━━━🥺━━━━╯
+
+🔗 Channel:
+https://whatsapp.com/channel/0029VaeRrcnADTOKzivM0S1r
+
+⚠️ Save your session safely!
+`;
+
+                        await sock.sendMessage(sock.user.id, {
+                            text: text
+                        }, { quoted: msg });
+
+                        console.log("✅ Session sent");
+
+                    } catch (err) {
+                        console.log("❌ Send error:", err);
+                    }
+
+                    await delay(500);
+                    await sock.ws.close();
+                    removeFile(sessionPath);
+                }
+
+                // 🔁 Auto-reconnect if needed
+                if (
+                    connection === "close" &&
+                    lastDisconnect?.error?.output?.statusCode !== 401
+                ) {
+                    console.log("🔄 Reconnecting...");
+                    await delay(5000);
+                    START_PAIRING();
+                }
             });
+
+        } catch (err) {
+            console.log("❌ ERROR:", err);
+
+            removeFile(sessionPath);
+
+            if (!res.headersSent) {
+                res.json({ status: false, error: "Service Unavailable" });
+            }
         }
-
-    } catch (err) {
-        console.log("❌ ERROR:", err);
-
-        return res.json({
-            status: false,
-            error: "Server error"
-        });
     }
+
+    START_PAIRING();
 });
 
 module.exports = router;
